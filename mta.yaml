@@ -1,0 +1,116 @@
+_schema-version: 3.3.0
+ID: te_gas_ai_chatbot_cap
+version: 1.0.0
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+modules:
+  - name: te_gas_ai_chatbot_cap-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: npm-ci
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: te_gas_ai_chatbot_cap-auth
+      - name: te_gas_ai_chatbot_cap-db
+      - name: te_gas_ai_chatbot_cap-connectivity
+      - name: te_gas_ai_chatbot_cap-destination
+      - name: te_gas_ai_chatbot_cap-logging
+      # - name: te_gas_ai_chatbot_cap-auditlog
+
+  # - name: te_gas_ai_chatbot_cap-mtx
+  #   type: nodejs
+  #   path: gen/mtx/sidecar
+  #   build-parameters:
+  #     builder: npm-ci
+  #   parameters:
+  #     instances: 1
+  #     memory: 256M
+  #     disk-quota: 512M
+  #   provides:
+  #     - name: mtx-api
+  #       properties:
+  #         mtx-url: ${default-url}
+  #   requires:
+  #     # - name: te_gas_ai_chatbot_cap-registry
+  #     - name: te_gas_ai_chatbot_cap-auth
+  #     - name: te_gas_ai_chatbot_cap-db
+  #     - name: te_gas_ai_chatbot_cap-logging
+
+  - name: te_gas_ai_chatbot_cap-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: te_gas_ai_chatbot_cap-db
+
+resources:
+  - name: te_gas_ai_chatbot_cap-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: te_gas_ai_chatbot_cap-${org}-${space}
+        tenant-mode: shared
+  # - name: te_gas_ai_chatbot_cap-registry
+  #   type: org.cloudfoundry.managed-service
+  #   requires:
+  #     - name: mtx-api
+  #   parameters:
+  #     service: saas-registry
+  #     service-plan: application
+  #     config:
+  #       xsappname: te_gas_ai_chatbot_cap-${org}-${space}
+  #       appName: te_gas_ai_chatbot_cap-${org}-${space}
+  #       displayName: te_gas_ai_chatbot_cap
+  #       description: A simple CAP project.
+  #       category: 'Category'
+  #       appUrls:
+  #         getDependencies: ~{mtx-api/mtx-url}/-/cds/saas-provisioning/dependencies
+  #         onSubscription: ~{mtx-api/mtx-url}/-/cds/saas-provisioning/tenant/{tenantId}
+  #         onSubscriptionAsync: true
+  #         onUnSubscriptionAsync: true
+  #         onUpdateDependenciesAsync: true
+  #         callbackTimeoutMillis: 300000 # Increase if your deployments are taking longer than that
+
+  - name: te_gas_ai_chatbot_cap-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite
+  - name: te_gas_ai_chatbot_cap-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: te_gas_ai_chatbot_cap-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+  - name: te_gas_ai_chatbot_cap-logging
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: application-logs
+      service-plan: standard
+  # - name: te_gas_ai_chatbot_cap-auditlog
+  #   type: org.cloudfoundry.managed-service
+  #   parameters:
+  #     service: auditlog
+  #     service-plan: premium
